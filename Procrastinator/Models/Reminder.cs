@@ -1,10 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Procrastinator
+namespace Procrastinator.Models
 {
     public enum ReminderTimelineType
     {
+        Imminent,       // New timeline for next 5 minutes
         Today,
         Tomorrow,
         ThisWeek,        
@@ -15,33 +16,32 @@ namespace Procrastinator
         NextYear         
     }
 
-    public class User
-    {
-        [Key]
-        public int Id { get; set; }
-        
-        [Required]
-        [StringLength(20)]
-        public string PhoneNumber { get; set; } = string.Empty;
-        
-        public DateTimeOffset CreatedAt { get; set; }
-        public DateTimeOffset UpdatedAt { get; set; }
-        
-        // Navigation property
-        public virtual ICollection<Reminder> Reminders { get; set; } = new List<Reminder>();
-    }
-
     // DTO for incoming POST requests to create reminders
     public class ReminderRequest
     {
         [Required]
-        public string PhoneNumber { get; set; } = string.Empty;
+        public string ContactInfo { get; set; } = string.Empty;
         
         [Required]
         public string Message { get; set; } = string.Empty;
         
         [Required]
         public ReminderTimelineType ReminderTimeline { get; set; }
+    }
+
+    // DTO for API responses to avoid circular references
+    public class ReminderResponse
+    {
+        public int Id { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public DateTimeOffset ReminderDateTime { get; set; }
+        public string ReminderTimeline { get; set; } = string.Empty;
+        public bool IsCompleted { get; set; }
+        public int RetryCount { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+        public DateTimeOffset UpdatedAt { get; set; }
+        public string ContactInfo { get; set; } = string.Empty;
+        public string UserType { get; set; } = string.Empty;
     }
 
     // Internal model for storing reminders in the database
@@ -71,16 +71,38 @@ namespace Procrastinator
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset UpdatedAt { get; set; }
         
-        // Navigation property
+        // Navigation property - can be either EmailUser or PhoneUser
         [ForeignKey("UserId")]
         public virtual User User { get; set; } = null!;
         
+        // Helper method to convert to DTO
+        public ReminderResponse ToResponse()
+        {
+            return new ReminderResponse
+            {
+                Id = Id,
+                Message = Message,
+                ReminderDateTime = ReminderDateTime,
+                ReminderTimeline = ReminderTimeline,
+                IsCompleted = IsCompleted,
+                RetryCount = RetryCount,
+                CreatedAt = CreatedAt,
+                UpdatedAt = UpdatedAt,
+                ContactInfo = User.ContactInfo,
+                UserType = User is EmailUser ? "Email" : "Phone"
+            };
+        }
+        
         public static DateTimeOffset GetReminderDateTime(ReminderTimelineType reminderTimeline)
         {
-            DateTimeOffset now = DateTimeOffset.Now;
+            DateTimeOffset now = DateTimeOffset.UtcNow;
             Random rand = new Random();
             switch (reminderTimeline)
             {
+                case ReminderTimelineType.Imminent:
+                    // Send reminders within the next 5 minutes
+                    return now.AddMinutes(rand.Next(0, 5));
+
                 case ReminderTimelineType.Today:
                     // Random time today between now and midnight
                     var todayEnd = now.Date.AddDays(1).AddSeconds(-1);
@@ -131,7 +153,7 @@ namespace Procrastinator
                 case ReminderTimelineType.NextYear:
                     // Random time next year
                     var nextYearStart = new DateTimeOffset(now.Year + 1, 1, 1, 0, 0, 0, now.Offset);
-                    var nextYearEnd = new DateTimeOffset(nextYearStart.Year, 12, 31, 23, 59, 59, now.Offset);
+                    var nextYearEnd = new DateTimeOffset(nextYearStart.Year, 12, 31, 23, 59, 59, nextYearStart.Offset);
                     var nextYearSpan = nextYearEnd - nextYearStart;
                     return nextYearStart.AddSeconds(rand.NextDouble() * nextYearSpan.TotalSeconds);
 

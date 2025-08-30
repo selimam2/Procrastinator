@@ -7,30 +7,32 @@ namespace Procrastinator.Services
     public class TwilioService : IMessageService
     {
         private readonly ILogger<TwilioService> _logger;
-        private readonly IConfiguration _configuration;
+        private readonly IAppConfiguration _appConfig;
 
-        public TwilioService(ILogger<TwilioService> logger, IConfiguration configuration)
+        public TwilioService(ILogger<TwilioService> logger, IAppConfiguration appConfig)
         {
             _logger = logger;
-            _configuration = configuration;
+            _appConfig = appConfig;
         }
 
         public async Task<bool> SendMessageAsync(string recipient, string message)
         {
             try
             {
-                var accountSid = _configuration["Twilio:AccountSid"];
-                var authToken = _configuration["Twilio:AuthToken"];
-                var fromPhoneNumber = _configuration["Twilio:FromPhoneNumber"];
+                var accountSid = _appConfig.TwilioAccountSid;
+                var authToken = _appConfig.TwilioAuthToken;
+                var fromPhoneNumber = _appConfig.TwilioFromPhoneNumber;
 
                 if (string.IsNullOrEmpty(accountSid) || string.IsNullOrEmpty(authToken) || string.IsNullOrEmpty(fromPhoneNumber))
                 {
                     _logger.LogError("Twilio configuration is missing. Please check appsettings.json");
                     return false;
                 }
-
+                _logger.LogInformation("accountSid: " + accountSid);
+                _logger.LogInformation("authToken: " + authToken);
+                _logger.LogInformation("fromPhoneNumber: " + fromPhoneNumber);
                 TwilioClient.Init(accountSid, authToken);
-
+                
                 var messageResource = await MessageResource.CreateAsync(
                     to: new PhoneNumber(recipient),
                     from: new PhoneNumber(fromPhoneNumber),

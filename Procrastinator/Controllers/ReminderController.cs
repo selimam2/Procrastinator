@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Procrastinator.Models;
 
 namespace Procrastinator.Controllers
 {
@@ -18,26 +19,52 @@ namespace Procrastinator.Controllers
 
         // POST: api/Reminder
         [HttpPost]
-        public async Task<ActionResult<Reminder>> CreateReminder([FromBody] ReminderRequest request)
+        public async Task<ActionResult<ReminderResponse>> CreateReminder([FromBody] ReminderRequest request)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            // Find or create user based on phone number
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.PhoneNumber == request.PhoneNumber);
+            // Try to find existing user by contact info
+            User? user = null;
+            
+            // First try to find by email
+            user = await _context.EmailUsers
+                .FirstOrDefaultAsync(u => u.EmailAddress == request.ContactInfo);
+            
+            // If not found by email, try by phone
+            if (user == null)
+            {
+                user = await _context.PhoneUsers
+                    .FirstOrDefaultAsync(u => u.PhoneNumber == request.ContactInfo);
+            }
 
             if (user == null)
             {
-                // Create user if they don't exist
-                user = new User
+                // Create user based on the contact info format
+                if (IsValidEmail(request.ContactInfo))
                 {
-                    PhoneNumber = request.PhoneNumber,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                };
-                _context.Users.Add(user);
-                await _context.SaveChangesAsync();
+                    var emailUser = new EmailUser
+                    {
+                        EmailAddress = request.ContactInfo,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        UpdatedAt = DateTimeOffset.UtcNow
+                    };
+                    _context.EmailUsers.Add(emailUser);
+                    await _context.SaveChangesAsync();
+                    user = emailUser;
+                }
+                else
+                {
+                    var phoneUser = new PhoneUser
+                    {
+                        PhoneNumber = request.ContactInfo,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        UpdatedAt = DateTimeOffset.UtcNow
+                    };
+                    _context.PhoneUsers.Add(phoneUser);
+                    await _context.SaveChangesAsync();
+                    user = phoneUser;
+                }
             }
 
             var reminder = new Reminder
@@ -55,9 +82,25 @@ namespace Procrastinator.Controllers
             _context.Reminders.Add(reminder);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation($"Reminder created for {reminder.UserId} at {reminder.ReminderDateTime}: {reminder.Message}");
+            _logger.LogInformation($"Reminder created for {user.ContactInfo} at {reminder.ReminderDateTime}: {reminder.Message}");
 
-            return CreatedAtAction(nameof(CreateReminder), new { id = reminder.Id }, reminder);
+            // Create response DTO
+            var response = reminder.ToResponse();
+
+            return CreatedAtAction(nameof(CreateReminder), new { id = reminder.Id }, response);
+        }
+
+        private static bool IsValidEmail(string email)
+        {
+            try
+            {
+                var addr = new System.Net.Mail.MailAddress(email);
+                return addr.Address == email;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }
