@@ -77,20 +77,6 @@ namespace Procrastinator.Controllers
 
             return CreatedAtAction(nameof(CreatePhoneUser), new { id = user.Id }, user);
         }
-
-        // GET: api/User/Email
-        [HttpGet("Email")]
-        public async Task<ActionResult<IEnumerable<EmailUser>>> GetEmailUsers()
-        {
-            return await _context.EmailUsers.ToListAsync();
-        }
-
-        // GET: api/User/Phone
-        [HttpGet("Phone")]
-        public async Task<ActionResult<IEnumerable<PhoneUser>>> GetPhoneUsers()
-        {
-            return await _context.PhoneUsers.ToListAsync();
-        }
     }
 
     public class CreateEmailUserRequest

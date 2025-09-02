@@ -43,8 +43,8 @@ namespace Procrastinator.Services
         {
             using var scope = _serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ProcrastinatorContext>();
-            var emailService = scope.ServiceProvider.GetRequiredService<EmailMessageService>();
-            var twilioService = scope.ServiceProvider.GetRequiredService<TwilioService>();
+            var emailService = scope.ServiceProvider.GetRequiredKeyedService<IMessageService>("email");
+            var twilioService = scope.ServiceProvider.GetRequiredKeyedService<IMessageService>("sms");
 
             var now = DateTimeOffset.UtcNow;
             

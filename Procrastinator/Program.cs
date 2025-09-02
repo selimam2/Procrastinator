@@ -4,6 +4,17 @@ using Procrastinator.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 // Add services to the container.
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -17,7 +28,8 @@ builder.Services.AddDbContext<ProcrastinatorContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Add Message Service (currently Twilio, but easily extensible)
-builder.Services.AddScoped<IMessageService, TwilioService>();
+builder.Services.AddKeyedScoped<IMessageService, TwilioService>("sms");
+builder.Services.AddKeyedScoped<IMessageService, EmailMessageService>("email");
 
 // Add App Configuration
 builder.Services.AddSingleton<IAppConfiguration, AppConfiguration>();
@@ -37,6 +49,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// Use CORS
+app.UseCors("AllowReactApp");
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
